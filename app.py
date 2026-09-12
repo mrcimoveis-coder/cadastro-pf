@@ -161,9 +161,25 @@ def gerar_pdf_ficha(dados: dict) -> bytes:
     elements.append(montar_tabela(sec2))
     elements.append(Spacer(1, 8))
 
-    # 3. Cônjuge (se houver)
+    # 3. Profissional e Renda (Principal)
+    sec3 = {
+        "Condição de Trabalho": dados["condicao_trabalho"],
+        "Profissão": dados["profissao"],
+        "Empresa / Órgão": dados["empresa"],
+        "Cargo": dados["cargo"],
+        "Data de Admissão": dados["dt_admissao"],
+        "Endereço Empresa/Trabalho": dados["end_empresa"],
+        "Telefone Comercial": dados["tel_comercial"],
+        "Renda Bruta Mensal": dados["renda_bruta"],
+        "Outras Rendas": dados["outras_rendas"]
+    }
+    elements.append(Paragraph("3. Dados Profissionais e Renda (Principal)", style_section))
+    elements.append(montar_tabela(sec3))
+    elements.append(Spacer(1, 8))
+
+    # 4. Cônjuge (se houver)
     if dados.get("conj_nome"):
-        sec3 = {
+        sec4 = {
             "Nome do Cônjuge": dados["conj_nome"],
             "CPF do Cônjuge": dados["conj_cpf"],
             "RG do Cônjuge": f"{dados['conj_rg']} (Órgão: {dados['conj_rg_orgao']})",
@@ -180,25 +196,9 @@ def gerar_pdf_ficha(dados: dict) -> bytes:
             "Renda Bruta Mensal": dados.get("conj_renda"),
             "Outras Rendas": dados.get("conj_outras_rendas")
         }
-        elements.append(Paragraph("3. Dados Completos do Cônjuge / Companheiro(a)", style_section))
-        elements.append(montar_tabela(sec3))
+        elements.append(Paragraph("4. Dados Completos do Cônjuge / Companheiro(a)", style_section))
+        elements.append(montar_tabela(sec4))
         elements.append(Spacer(1, 8))
-
-    # 4. Profissional e Renda (Principal)
-    sec4 = {
-        "Condição de Trabalho": dados["condicao_trabalho"],
-        "Profissão": dados["profissao"],
-        "Empresa / Órgão": dados["empresa"],
-        "Cargo": dados["cargo"],
-        "Data de Admissão": dados["dt_admissao"],
-        "Endereço Empresa/Trabalho": dados["end_empresa"],
-        "Telefone Comercial": dados["tel_comercial"],
-        "Renda Bruta Mensal": dados["renda_bruta"],
-        "Outras Rendas": dados["outras_rendas"]
-    }
-    elements.append(Paragraph("4. Dados Profissionais e Renda (Principal)", style_section))
-    elements.append(montar_tabela(sec4))
-    elements.append(Spacer(1, 8))
 
     # 5. Moradores Adicionais
     if dados.get("outros_moradores_flag"):
@@ -310,13 +310,29 @@ if tipo_residencia_atual == "Alugada":
 
 endereco_atual = st.text_input("Endereço Residencial Atual Completo (com CEP) *")
 
-# 3.1. Dados Completos do Cônjuge / Companheiro(a)
+# 4. Profissional e Renda (Principal)
+st.markdown("---")
+st.subheader("4. Dados Profissionais e Renda (Locatário / Fiador)")
+col_p1, col_p2 = st.columns(2)
+with col_p1:
+    condicao_trabalho = st.selectbox("Condição de Trabalho *", ["Empregado", "Servidor Público", "Autônomo", "Empresário", "Aposentado/Pensionista"])
+    profissao = st.text_input("Profissão *")
+    empresa = st.text_input("Empresa / Órgão em que Trabalha (ou última se Aposentado/Pensionista) *")
+    cargo = st.text_input("Cargo *")
+    dt_admissao_raw = st.text_input("Data de Admissão no Emprego Atual *", placeholder="DD/MM/AAAA")
+with col_p2:
+    end_empresa = st.text_input("Endereço da Empresa que Trabalha *")
+    tel_comercial_raw = st.text_input("Telefone do Trabalho (Comercial) *")
+    renda_bruta_raw = st.text_input("Renda Bruta Mensal (R$) *", placeholder="Ex: 4500")
+    outras_rendas = st.text_input("Outras Rendas / Origem")
+
+# 4.1. Dados Completos do Cônjuge / Companheiro(a) [POSICIONADO APÓS A RENDA PRINCIPAL]
 conj_nome, conj_cpf_raw, conj_rg, conj_rg_orgao, conj_dt_nasc_raw, conj_celular_raw, conj_email = "", "", "", "", "", "", ""
 conj_condicao, conj_profissao, conj_empresa, conj_cargo, conj_dt_admissao_raw, conj_end_empresa, conj_tel_comercial_raw, conj_renda_raw, conj_outras_rendas = "", "", "", "", "", "", "", "", ""
 
 if estado_civil in ["Casado(a)", "União Estável"]:
     st.markdown("---")
-    st.subheader("3.1. Dados do Cônjuge / Companheiro(a)")
+    st.subheader("4.1. Dados do Cônjuge / Companheiro(a)")
     st.caption("Preencha as informações pessoais e profissionais do cônjuge.")
     
     col_c1, col_c2 = st.columns(2)
@@ -343,22 +359,6 @@ if estado_civil in ["Casado(a)", "União Estável"]:
         conj_tel_comercial_raw = st.text_input("Telefone Comercial Cônjuge *")
         conj_renda_raw = st.text_input("Renda Bruta Mensal Cônjuge *", placeholder="Ex: 5000")
         conj_outras_rendas = st.text_input("Outras Rendas Cônjuge (Origem)")
-
-# 4. Profissional e Renda (Principal)
-st.markdown("---")
-st.subheader("4. Dados Profissionais e Renda (Locatário / Fiador)")
-col_p1, col_p2 = st.columns(2)
-with col_p1:
-    condicao_trabalho = st.selectbox("Condição de Trabalho *", ["Empregado", "Servidor Público", "Autônomo", "Empresário", "Aposentado/Pensionista"])
-    profissao = st.text_input("Profissão *")
-    empresa = st.text_input("Empresa / Órgão em que Trabalha (ou última se Aposentado/Pensionista) *")
-    cargo = st.text_input("Cargo *")
-    dt_admissao_raw = st.text_input("Data de Admissão no Emprego Atual *", placeholder="DD/MM/AAAA")
-with col_p2:
-    end_empresa = st.text_input("Endereço da Empresa que Trabalha *")
-    tel_comercial_raw = st.text_input("Telefone do Trabalho (Comercial) *")
-    renda_bruta_raw = st.text_input("Renda Bruta Mensal (R$) *", placeholder="Ex: 4500")
-    outras_rendas = st.text_input("Outras Rendas / Origem")
 
 # 5. Outros Moradores (exclusivo para Locatário)
 outros_moradores_flag, outros_moradores_lista = "", ""
@@ -444,14 +444,14 @@ if btn_enviar:
     if tipo_residencia_atual == "Alugada" and (not aluguel_atual_valor_raw or not aluguel_atual_locador or not aluguel_atual_fone_raw or not aluguel_atual_tempo or not aluguel_atual_motivo):
         erros.append("Preencha todas as informações sobre o aluguel pago atualmente.")
 
+    if not profissao or not empresa or not cargo or not dt_admissao_raw or not end_empresa or not tel_comercial_raw or not renda_bruta_raw:
+        erros.append("Preencha todas as informações profissionais e de renda.")
+
     if estado_civil in ["Casado(a)", "União Estável"]:
         if not conj_nome or not conj_cpf_raw or not conj_rg or not conj_rg_orgao or not conj_profissao or not conj_empresa or not conj_renda_raw:
             erros.append("Preencha as informações pessoais e profissionais obrigatórias do cônjuge.")
         elif not validar_cpf(conj_cpf_raw):
             erros.append("O CPF do cônjuge é inválido.")
-
-    if not profissao or not empresa or not cargo or not dt_admissao_raw or not end_empresa or not tel_comercial_raw or not renda_bruta_raw:
-        erros.append("Preencha todas as informações profissionais e de renda.")
 
     if tipo_cadastro == "Locatário (Inquilino)" and outros_moradores_flag == "SIM" and not outros_moradores_lista:
         erros.append("Informe a relação de outros moradores que residirão no imóvel.")
