@@ -5,12 +5,13 @@ from email.mime.base import MIMEBase
 from email import encoders
 import io
 import re
+import urllib.request
 import streamlit as st
 
 # ReportLab para geração do PDF
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable, Image
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
 # -----------------------------------------------------------------------------
@@ -41,16 +42,28 @@ def gerar_pdf_ficha(dados: dict) -> bytes:
     doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
     styles = getSampleStyleSheet()
     
-    style_title = ParagraphStyle('Title', parent=styles['Heading1'], fontSize=16, textColor=colors.HexColor("#C4001A"), spaceAfter=10)
-    style_section = ParagraphStyle('Section', parent=styles['Heading2'], fontSize=12, textColor=colors.HexColor("#2B2B2B"), spaceBefore=10, spaceAfter=5)
+    style_title = ParagraphStyle('Title', parent=styles['Heading1'], fontSize=13, textColor=colors.HexColor("#C4001A"), spaceAfter=8)
+    style_section = ParagraphStyle('Section', parent=styles['Heading2'], fontSize=11, textColor=colors.HexColor("#2B2B2B"), spaceBefore=10, spaceAfter=5)
     style_body = ParagraphStyle('Body', parent=styles['Normal'], fontSize=9, leading=12, textColor=colors.HexColor("#333333"))
     style_bold = ParagraphStyle('Bold', parent=style_body, fontName='Helvetica-Bold')
 
     elements = []
 
-    # Cabeçalho PDF
-    elements.append(Paragraph("<b>MRC IMÓVEIS — FICHA CADASTRAL DE LOCAÇÃO (PF)</b>", style_title))
-    elements.append(HRFlowable(width="100%", thickness=2, color=colors.HexColor("#C4001A"), spaceAfter=15))
+    # Inserção do Logotipo da MRC Imóveis no PDF
+    try:
+        logo_url = "https://raw.githubusercontent.com/mrcimoveis-coder/intranet/main/logo.jpeg"
+        logo_data = urllib.request.urlopen(logo_url).read()
+        logo_io = io.BytesIO(logo_data)
+        img = Image(logo_io, width=140, height=48)
+        img.hAlign = 'LEFT'
+        elements.append(img)
+        elements.append(Spacer(1, 8))
+    except Exception:
+        pass
+
+    # Cabeçalho do Documento
+    elements.append(Paragraph("<b>FICHA CADASTRAL DE LOCAÇÃO — PESSOA FÍSICA</b>", style_title))
+    elements.append(HRFlowable(width="100%", thickness=2, color=colors.HexColor("#C4001A"), spaceAfter=12))
 
     def montar_tabela(dados_sec):
         data_table = []
@@ -63,7 +76,7 @@ def gerar_pdf_ficha(dados: dict) -> bytes:
             ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#F8FAFC")),
             ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#E2E8F0")),
             ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('PADDING', (0,0), (-1,-1), 5),
+            ('PADDING', (0,0), (-1,-1), 4),
         ]))
         return t
 
@@ -83,7 +96,7 @@ def gerar_pdf_ficha(dados: dict) -> bytes:
         "Garantia": f"{dados['garantia']} ({dados['detalhe_garantia']})",
         "Endereço Atual": f"{dados['endereco_atual']} (Moradia: {dados['tipo_residencia_atual']})"
     }))
-    elements.append(Spacer(1, 10))
+    elements.append(Spacer(1, 8))
 
     # 2. Cônjuge (se houver)
     if dados.get("conj_nome"):
@@ -97,7 +110,7 @@ def gerar_pdf_ficha(dados: dict) -> bytes:
             "Cargo": dados["conj_cargo"],
             "Renda Bruta": dados["conj_renda"]
         }))
-        elements.append(Spacer(1, 10))
+        elements.append(Spacer(1, 8))
 
     # 3. Profissional e Renda
     elements.append(Paragraph("3. Dados Profissionais e Renda", style_section))
@@ -109,7 +122,7 @@ def gerar_pdf_ficha(dados: dict) -> bytes:
         "Renda Bruta Mensal": dados["renda_bruta"],
         "Outras Rendas": dados["outras_rendas"]
     }))
-    elements.append(Spacer(1, 10))
+    elements.append(Spacer(1, 8))
 
     # 4. Referências e Observações
     elements.append(Paragraph("4. Referências e Observações", style_section))
@@ -264,7 +277,7 @@ if btn_enviar:
                 smtp_port = st.secrets["smtp"]["port"]
                 sender_email = st.secrets["smtp"]["email"]
                 sender_password = st.secrets["smtp"]["password"]
-                receiver_email = "aluguel@mrcimoveis.com.br"  # Destino definitivo MRC
+                receiver_email = "aluguel@mrcimoveis.com.br"
 
                 msg = MIMEMultipart()
                 msg['From'] = sender_email
