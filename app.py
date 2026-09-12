@@ -250,10 +250,10 @@ garantia = ""
 detalhe_garantia = ""
 imovel_fiador_status = ""
 
+# LÓGICA CONDICIONAL DA SEÇÃO 2
 if tipo_cadastro == "Locatário (Inquilino)":
     motivo_mudanca_novo = st.text_input("Motivo da sua mudança para o novo imóvel *")
 
-    # 2. Garantia da Locação (Exclusivo para Locatário)
     st.subheader("2. Garantia da Locação")
     garantia = st.selectbox(
         "Garantia oferecida *",
@@ -269,10 +269,9 @@ if tipo_cadastro == "Locatário (Inquilino)":
     detalhe_garantia = st.text_input("Detalhamento da garantia (caso necessário)")
 
 else:
-    # 2. Situação do Imóvel Próprio (Exclusivo para Fiador)
     st.subheader("2. Informações sobre Imóvel Próprio do Fiador")
     imovel_fiador_status = st.selectbox(
-        "Como Fiador, qual a situação do seu imóvel próprio? *",
+        "Como Fiador, qual a situação do seu imóvel próprio no DF? *",
         [
             "Própria Quitada",
             "Própria Financiada",
