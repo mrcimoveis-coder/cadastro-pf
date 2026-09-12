@@ -132,9 +132,14 @@ def gerar_pdf_ficha(dados: dict) -> bytes:
         "Telefone Residencial": dados["tel_residencial"],
         "Imóvel Pretendido": dados["endereco_imovel"],
         "Valor do Aluguel": dados["valor_aluguel"],
-        "Garantia Offered": f"{dados['garantia']} ({dados['detalhe_garantia']})" if dados.get('detalhe_garantia') else dados['garantia'],
-        "Motivo Mudança (Novo Imóvel)": dados.get("motivo_mudanca_novo")
     }
+    
+    if dados["tipo_cadastro"] == "Locatário (Inquilino)":
+        sec1["Garantia Oferecida"] = f"{dados['garantia']} ({dados['detalhe_garantia']})" if dados.get('detalhe_garantia') else dados.get('garantia')
+        sec1["Motivo Mudança (Novo Imóvel)"] = dados.get("motivo_mudanca_novo")
+    else:
+        sec1["Imóvel Próprio do Fiador"] = dados.get("imovel_fiador_status")
+
     elements.append(Paragraph("1. Identificação e Imóvel Pretendido", style_section))
     elements.append(montar_tabela(sec1))
     elements.append(Spacer(1, 8))
@@ -221,7 +226,7 @@ def gerar_pdf_ficha(dados: dict) -> bytes:
 
 
 # -----------------------------------------------------------------------------
-# INTERFACE STREAMLIT (Navegação Dinâmica)
+# INTERFACE STREAMLIT
 # -----------------------------------------------------------------------------
 st.set_page_config(page_title="Ficha Cadastral PF | MRC Imóveis", page_icon="📝", layout="centered")
 
@@ -241,23 +246,40 @@ endereco_imovel = st.text_input("Endereço do imóvel a ser alugado *")
 valor_aluguel_raw = st.text_input("Valor do Aluguel Mensal (opcional)", placeholder="Ex: 3000 ou R$ 3.000,00")
 
 motivo_mudanca_novo = ""
+garantia = ""
+detalhe_garantia = ""
+imovel_fiador_status = ""
+
 if tipo_cadastro == "Locatário (Inquilino)":
     motivo_mudanca_novo = st.text_input("Motivo da sua mudança para o novo imóvel *")
 
-# 2. Garantia
-st.subheader("2. Garantia da Locação")
-garantia = st.selectbox(
-    "Garantia oferecida *",
-    [
-        "2 Fiadores do DF com renda e imóvel",
-        "Caução / Título de Capitalização",
-        "Seguro Fiança",
-        "Fiança Bancária / Associação",
-        "CredPago",
-        "Outra"
-    ]
-)
-detalhe_garantia = st.text_input("Detalhamento da garantia (caso necessário)")
+    # 2. Garantia da Locação (Exclusivo para Locatário)
+    st.subheader("2. Garantia da Locação")
+    garantia = st.selectbox(
+        "Garantia oferecida *",
+        [
+            "2 Fiadores do DF com renda e imóvel",
+            "Caução / Título de Capitalização",
+            "Seguro Fiança",
+            "Fiança Bancária / Associação",
+            "CredPago",
+            "Outra"
+        ]
+    )
+    detalhe_garantia = st.text_input("Detalhamento da garantia (caso necessário)")
+
+else:
+    # 2. Situação do Imóvel Próprio (Exclusivo para Fiador)
+    st.subheader("2. Informações sobre Imóvel Próprio do Fiador")
+    imovel_fiador_status = st.selectbox(
+        "Como Fiador, qual a situação do seu imóvel próprio? *",
+        [
+            "Própria Quitada",
+            "Própria Financiada",
+            "Consórcio",
+            "Não possui imóvel próprio no DF"
+        ]
+    )
 
 # 3. Dados Pessoais
 st.subheader("3. Dados Pessoais")
@@ -411,8 +433,14 @@ if btn_enviar:
     if not validar_cpf(cpf_raw):
         erros.append("O CPF informado no cadastro principal é inválido.")
     
-    if tipo_cadastro == "Locatário (Inquilino)" and not motivo_mudanca_novo:
-        erros.append("Informe o motivo da mudança para o novo imóvel.")
+    if tipo_cadastro == "Locatário (Inquilino)":
+        if not motivo_mudanca_novo:
+            erros.append("Informe o motivo da mudança para o novo imóvel.")
+        if not garantia:
+            erros.append("Selecione a garantia oferecida para a locação.")
+    else:
+        if not imovel_fiador_status:
+            erros.append("Informe a situação do seu imóvel próprio como Fiador.")
 
     if tipo_residencia_atual == "Alugada" and (not aluguel_atual_valor_raw or not aluguel_atual_locador or not aluguel_atual_fone_raw or not aluguel_atual_tempo or not aluguel_atual_motivo):
         erros.append("Preencha todas as informações sobre o aluguel pago atualmente.")
@@ -445,6 +473,7 @@ if btn_enviar:
                     "tel_residencial": tel_residencial, "endereco_imovel": endereco_imovel,
                     "valor_aluguel": valor_aluguel, "garantia": garantia,
                     "detalhe_garantia": detalhe_garantia, "motivo_mudanca_novo": motivo_mudanca_novo,
+                    "imovel_fiador_status": imovel_fiador_status,
                     "endereco_atual": endereco_atual, "tipo_residencia_atual": tipo_residencia_atual,
                     "aluguel_atual_valor": aluguel_atual_valor, "aluguel_atual_locador": aluguel_atual_locador,
                     "aluguel_atual_fone": aluguel_atual_fone, "aluguel_atual_tempo": aluguel_atual_tempo,
