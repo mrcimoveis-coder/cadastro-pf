@@ -75,8 +75,8 @@ def formatar_moeda(val: str) -> str:
 def sanitizar_nome_arquivo(nome):
     """Higieniza nomes de arquivos para impedir rejeição do Gmail (evita 'noname')"""
     n = unicodedata.normalize('NFKD', str(nome)).encode('ASCII', 'ignore').decode('utf-8')
-    n = re.sub(r'[^a-zA-Z0-9.]', '_', n)  # Substitui acentos, espaços e caracteres especiais por _
-    n = re.sub(r'\.+', '.', n)            # Transforma múltiplos pontos (...) em apenas um (.)
+    n = re.sub(r'[^a-zA-Z0-9.]', '_', n)
+    n = re.sub(r'\.+', '.', n)
     return re.sub(r'_+', '_', n).strip('_')
 
 # -----------------------------------------------------------------------------
@@ -239,6 +239,38 @@ def gerar_pdf_ficha(dados: dict) -> bytes:
 # -----------------------------------------------------------------------------
 st.set_page_config(page_title="Ficha Cadastral PF | MRC Imóveis", page_icon="📝", layout="centered")
 
+# ESTADO DE ENVIO COM SUCESSO (TELA DE AGRADECIMENTO)
+if "enviado_sucesso" not in st.session_state:
+    st.session_state.enviado_sucesso = False
+
+if st.session_state.enviado_sucesso:
+    st.balloons()
+    try:
+        st.image("https://raw.githubusercontent.com/mrcimoveis-coder/intranet/main/logo.jpeg", width=260)
+    except Exception:
+        pass
+    
+    st.success("✅ **Ficha Cadastral e Documentos Enviados com Sucesso!**")
+    st.markdown("""
+    ### Obrigado por enviar seus dados para a **MRC Imóveis**! 🎉
+    
+    Sua ficha cadastral e documentação foram encaminhadas com sucesso para o nosso setor de análise de locação.
+    
+    **O que acontece agora?**
+    * Nossa equipe iniciará a análise das informações prestadas.
+    * Entraremos em contato em breve através do e-mail ou telefone informado na ficha.
+    
+    ---
+    📬 **Contatos Úteis:**
+    * **E-mail:** aluguel@mrcimoveis.com.br / comercial@mrcimoveis.com.br
+    """)
+    st.markdown("---")
+    if st.button("🔄 Preencher outro cadastro"):
+        st.session_state.enviado_sucesso = False
+        st.rerun()
+    st.stop()
+
+# FORMULÁRIO PADRÃO
 try:
     st.image("https://raw.githubusercontent.com/mrcimoveis-coder/intranet/main/logo.jpeg", width=260)
 except Exception:
@@ -270,7 +302,7 @@ if tipo_cadastro == "Locatário (Inquilino)":
 
     st.subheader("2. Garantia da Locação")
     garantia = st.selectbox(
-        "Garantia offered *",
+        "Garantia oferecida *",
         [
             "2 Fiadores do DF com renda e imóvel",
             "Caução / Título de Capitalização",
@@ -424,7 +456,6 @@ btn_enviar = st.button("🚀 Enviar Cadastro e Documentos", type="primary", use_
 # PROCESSAMENTO DO ENVIO
 # -----------------------------------------------------------------------------
 if btn_enviar:
-    # Normalização dos valores digitados
     cpf = formatar_cpf(cpf_raw)
     celular = formatar_telefone(celular_raw)
     tel_residencial = formatar_telefone(tel_res_raw)
@@ -444,7 +475,6 @@ if btn_enviar:
     conj_tel_comercial = formatar_telefone(conj_tel_comercial_raw)
     conj_renda = formatar_moeda(conj_renda_raw)
 
-    # Validações dos campos obrigatórios
     erros = []
     if not aceito:
         erros.append("Você precisa marcar a caixa de declaração autorizando a análise.")
@@ -513,10 +543,8 @@ if btn_enviar:
                     "observacoes": observacoes
                 }
 
-                # Gerar PDF em memória
                 pdf_bytes = gerar_pdf_ficha(dados_form)
 
-                # Credenciais SMTP
                 smtp_server = st.secrets["smtp"]["server"]
                 smtp_port = st.secrets["smtp"]["port"]
                 sender_email = st.secrets["smtp"]["email"]
@@ -528,7 +556,6 @@ if btn_enviar:
                 msg['To'] = ", ".join(receiver_emails)
                 msg['Subject'] = f"NOVO CADASTRO PF [{tipo_cadastro}] - {nome_completo}"
 
-                # Corpo do E-mail HTML
                 html_body = f"""
                 <html>
                 <body style="font-family: Arial, sans-serif; color: #333333; background-color: #F4F6F8; padding: 20px;">
@@ -547,14 +574,12 @@ if btn_enviar:
                 """
                 msg.attach(MIMEText(html_body, 'html'))
 
-                # Anexar Ficha PDF
                 part_pdf = MIMEBase('application', 'pdf')
                 part_pdf.set_payload(pdf_bytes)
                 encoders.encode_base64(part_pdf)
                 part_pdf.add_header('Content-Disposition', 'attachment', filename=f"Ficha_Cadastral_{nome_completo.replace(' ', '_')}.pdf")
                 msg.attach(part_pdf)
 
-                # Função blindada para anexar os uploads do cliente
                 def anexar_uploads(lista_uploads, categoria):
                     if lista_uploads:
                         for upload in lista_uploads:
@@ -563,11 +588,9 @@ if btn_enviar:
                             if not file_bytes:
                                 continue
                             
-                            # Limpeza total do nome do arquivo
                             nome_seguro = sanitizar_nome_arquivo(upload.name)
                             nome_final = f"{categoria}_{nome_seguro}"
                             
-                            # Uso dos atributos name e filename corretos exigidos pelo Gmail
                             part = MIMEBase('application', 'octet-stream', name=nome_final)
                             part.set_payload(file_bytes)
                             encoders.encode_base64(part)
@@ -580,14 +603,15 @@ if btn_enviar:
                 anexar_uploads(doc_renda, "RENDA")
                 anexar_uploads(doc_ir, "IMPOSTO_RENDA")
 
-                # Disparo via SMTP para ambos os e-mails
                 server = smtplib.SMTP(smtp_server, smtp_port)
                 server.starttls()
                 server.login(sender_email, sender_password)
                 server.sendmail(sender_email, receiver_emails, msg.as_string())
                 server.quit()
 
-                st.success("✅ Ficha cadastral e documentos enviados com sucesso para a MRC Imóveis!")
-                st.balloons()
+                # REDIRECIONA PARA A TELA DE AGRADECIMENTO
+                st.session_state.enviado_sucesso = True
+                st.rerun()
+
             except Exception as e:
                 st.error(f"❌ Erro ao processar o envio: {e}")
