@@ -5,6 +5,7 @@ from email.mime.base import MIMEBase
 from email import encoders
 import io
 import re
+import unicodedata
 import urllib.request
 import streamlit as st
 
@@ -71,6 +72,13 @@ def formatar_moeda(val: str) -> str:
     except ValueError:
         return val
 
+def sanitizar_nome_arquivo(nome):
+    """Higieniza nomes de arquivos para impedir rejeição do Gmail (evita 'noname')"""
+    n = unicodedata.normalize('NFKD', str(nome)).encode('ASCII', 'ignore').decode('utf-8')
+    n = re.sub(r'[^a-zA-Z0-9.]', '_', n)  # Substitui acentos, espaços e caracteres especiais por _
+    n = re.sub(r'\.+', '.', n)            # Transforma múltiplos pontos (...) em apenas um (.)
+    return re.sub(r'_+', '_', n).strip('_')
+
 # -----------------------------------------------------------------------------
 # GERADOR DE PDF DA FICHA CADASTRAL
 # -----------------------------------------------------------------------------
@@ -86,7 +94,6 @@ def gerar_pdf_ficha(dados: dict) -> bytes:
 
     elements = []
 
-    # Inserção da Logo da MRC Imóveis
     try:
         logo_url = "https://raw.githubusercontent.com/mrcimoveis-coder/intranet/main/logo.jpeg"
         logo_data = urllib.request.urlopen(logo_url).read()
@@ -263,7 +270,7 @@ if tipo_cadastro == "Locatário (Inquilino)":
 
     st.subheader("2. Garantia da Locação")
     garantia = st.selectbox(
-        "Garantia oferecida *",
+        "Garantia offered *",
         [
             "2 Fiadores do DF com renda e imóvel",
             "Caução / Título de Capitalização",
@@ -397,7 +404,10 @@ ref_comerciais = st.text_input("Referências Comerciais")
 # 7. Documentos
 st.markdown("---")
 st.subheader("7. Envio de Documentos (Anexos)")
-st.info("Formatos aceitos: PDF, JPG, PNG. Você pode selecionar múltiplos arquivos em cada campo.")
+
+st.warning("⚠️ **Atenção para enviar vários arquivos:** Para colocar mais de um arquivo no mesmo campo (Ex: 3 contracheques), você deve **selecionar todos eles de uma só vez** na janela que abrir. Se você anexar um e depois clicar no botão para anexar o segundo, o primeiro será substituído.")
+
+st.info("Formatos aceitos: PDF, JPG, PNG.")
 
 doc_id = st.file_uploader("1. Documento de Identificação (RG/CPF ou CNH) *", accept_multiple_files=True)
 doc_estado_civil = st.file_uploader("2. Comprovante de Estado Civil (Certidões)", accept_multiple_files=True)
@@ -541,17 +551,27 @@ if btn_enviar:
                 part_pdf = MIMEBase('application', 'pdf')
                 part_pdf.set_payload(pdf_bytes)
                 encoders.encode_base64(part_pdf)
-                part_pdf.add_header('Content-Disposition', f'attachment; filename="Ficha_Cadastral_{nome_completo.replace(" ", "_")}.pdf"')
+                part_pdf.add_header('Content-Disposition', 'attachment', filename=f"Ficha_Cadastral_{nome_completo.replace(' ', '_')}.pdf")
                 msg.attach(part_pdf)
 
-                # Anexar Uploads do Cliente
+                # Função blindada para anexar os uploads do cliente
                 def anexar_uploads(lista_uploads, categoria):
                     if lista_uploads:
                         for upload in lista_uploads:
-                            part = MIMEBase('application', 'octet-stream')
-                            part.set_payload(upload.read())
+                            upload.seek(0)
+                            file_bytes = upload.read()
+                            if not file_bytes:
+                                continue
+                            
+                            # Limpeza total do nome do arquivo
+                            nome_seguro = sanitizar_nome_arquivo(upload.name)
+                            nome_final = f"{categoria}_{nome_seguro}"
+                            
+                            # Uso dos atributos name e filename corretos exigidos pelo Gmail
+                            part = MIMEBase('application', 'octet-stream', name=nome_final)
+                            part.set_payload(file_bytes)
                             encoders.encode_base64(part)
-                            part.add_header('Content-Disposition', f'attachment; filename="{categoria}_{upload.name}"')
+                            part.add_header('Content-Disposition', 'attachment', filename=nome_final)
                             msg.attach(part)
 
                 anexar_uploads(doc_id, "ID")
