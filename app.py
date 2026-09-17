@@ -8,12 +8,31 @@ import re
 import unicodedata
 import urllib.request
 import streamlit as st
+import streamlit.components.v1 as components
+from PIL import Image as PILImage, ImageChops
 
 # ReportLab para geração do PDF
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable, Image
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+
+LOGO_URL = "https://raw.githubusercontent.com/mrcimoveis-coder/portal-intranet/main/logo.jpeg"
+
+@st.cache_data(ttl=3600)
+def obter_logo_bytes():
+    """Baixa e recorta as margens brancas da identidade visual atual da MRC."""
+    logo_data = urllib.request.urlopen(LOGO_URL, timeout=10).read()
+    with PILImage.open(io.BytesIO(logo_data)).convert("RGB") as imagem:
+        fundo = PILImage.new("RGB", imagem.size, "white")
+        diferenca = ImageChops.difference(imagem, fundo).convert("L")
+        limite = diferenca.point(lambda pixel: 255 if pixel > 12 else 0)
+        caixa = limite.getbbox()
+        if caixa:
+            imagem = imagem.crop(caixa)
+        saida = io.BytesIO()
+        imagem.save(saida, format="PNG", optimize=True)
+        return saida.getvalue()
 
 # -----------------------------------------------------------------------------
 # FUNÇÕES AUXILIARES DE VALIDAÇÃO E FORMATAÇÃO
@@ -79,6 +98,51 @@ def sanitizar_nome_arquivo(nome):
     n = re.sub(r'\.+', '.', n)
     return re.sub(r'_+', '_', n).strip('_')
 
+def ativar_sincronizacao_autopreenchimento():
+    """Faz o Streamlit reconhecer valores escolhidos no autofill do navegador."""
+    components.html(
+        """
+        <script>
+        (() => {
+          const host = window.parent;
+          const doc = host.document;
+          if (host.__mrcAutofillSyncInstalled) return;
+          host.__mrcAutofillSyncInstalled = true;
+
+          const style = doc.createElement("style");
+          style.textContent = `
+            @keyframes mrcAutofillStarted { from {} to {} }
+            input:-webkit-autofill { animation-name: mrcAutofillStarted; animation-duration: 0.01s; }
+          `;
+          doc.head.appendChild(style);
+
+          const sincronizar = (input) => {
+            if (!input || !input.value) return;
+            const valor = input.value;
+            if (input.dataset.mrcAutofillSincronizado === valor) return;
+            input.dataset.mrcAutofillSincronizado = valor;
+            const tracker = input._valueTracker;
+            if (tracker) tracker.setValue("");
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+          };
+
+          doc.addEventListener("animationstart", (event) => {
+            if (event.animationName === "mrcAutofillStarted") {
+              host.setTimeout(() => sincronizar(event.target), 50);
+            }
+          }, true);
+
+          host.setInterval(() => {
+            doc.querySelectorAll("input:-webkit-autofill").forEach(sincronizar);
+          }, 500);
+        })();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
 # -----------------------------------------------------------------------------
 # GERADOR DE PDF DA FICHA CADASTRAL
 # -----------------------------------------------------------------------------
@@ -95,8 +159,7 @@ def gerar_pdf_ficha(dados: dict) -> bytes:
     elements = []
 
     try:
-        logo_url = "https://raw.githubusercontent.com/mrcimoveis-coder/intranet/main/logo.jpeg"
-        logo_data = urllib.request.urlopen(logo_url).read()
+        logo_data = obter_logo_bytes()
         logo_io = io.BytesIO(logo_data)
         img = Image(logo_io, width=140, height=48)
         img.hAlign = 'LEFT'
@@ -238,6 +301,7 @@ def gerar_pdf_ficha(dados: dict) -> bytes:
 # INTERFACE STREAMLIT
 # -----------------------------------------------------------------------------
 st.set_page_config(page_title="Ficha Cadastral PF | MRC Imóveis", page_icon="📝", layout="centered")
+ativar_sincronizacao_autopreenchimento()
 
 # ESTADO DE ENVIO COM SUCESSO (TELA DE AGRADECIMENTO)
 if "enviado_sucesso" not in st.session_state:
@@ -246,7 +310,7 @@ if "enviado_sucesso" not in st.session_state:
 if st.session_state.enviado_sucesso:
     st.balloons()
     try:
-        st.image("https://raw.githubusercontent.com/mrcimoveis-coder/intranet/main/logo.jpeg", width=260)
+        st.image(obter_logo_bytes(), width=260)
     except Exception:
         pass
     
@@ -272,7 +336,7 @@ if st.session_state.enviado_sucesso:
 
 # FORMULÁRIO PADRÃO
 try:
-    st.image("https://raw.githubusercontent.com/mrcimoveis-coder/intranet/main/logo.jpeg", width=260)
+    st.image(obter_logo_bytes(), width=260)
 except Exception:
     pass
 
