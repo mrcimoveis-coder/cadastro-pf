@@ -99,7 +99,7 @@ def sanitizar_nome_arquivo(nome):
     return re.sub(r'_+', '_', n).strip('_')
 
 def ativar_sincronizacao_autopreenchimento():
-    """Faz o Streamlit reconhecer valores escolhidos no autofill do navegador."""
+    """Faz o Streamlit reconhecer valores escolhidos no preenchimento automático."""
     components.html(
         """
         <script>
@@ -116,15 +116,29 @@ def ativar_sincronizacao_autopreenchimento():
           `;
           doc.head.appendChild(style);
 
+          const campos = () => doc.querySelectorAll(
+            'input:not([type="file"]):not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]), textarea'
+          );
+
+          const registrar = (input) => {
+            if (input && 'value' in input) input.dataset.mrcUltimoValor = input.value;
+          };
+
           const sincronizar = (input) => {
-            if (!input || !input.value) return;
+            if (!input || !('value' in input)) return;
             const valor = input.value;
-            if (input.dataset.mrcAutofillSincronizado === valor) return;
-            input.dataset.mrcAutofillSincronizado = valor;
+            const anterior = input.dataset.mrcUltimoValor;
+            if (valor === anterior) return;
             const tracker = input._valueTracker;
-            if (tracker) tracker.setValue("");
-            input.dispatchEvent(new Event("input", { bubbles: true }));
-            input.dispatchEvent(new Event("change", { bubbles: true }));
+            if (tracker) tracker.setValue(anterior ?? "");
+            input.dispatchEvent(new InputEvent("input", {
+              bubbles: true,
+              composed: true,
+              inputType: "insertReplacementText",
+              data: valor,
+            }));
+            input.dispatchEvent(new Event("change", { bubbles: true, composed: true }));
+            registrar(input);
           };
 
           doc.addEventListener("animationstart", (event) => {
@@ -133,9 +147,15 @@ def ativar_sincronizacao_autopreenchimento():
             }
           }, true);
 
+          doc.addEventListener("input", (event) => registrar(event.target), true);
+          doc.addEventListener("change", (event) => registrar(event.target), true);
+          doc.addEventListener("focusin", (event) => registrar(event.target), true);
+          doc.addEventListener("focusout", (event) => sincronizar(event.target), true);
+          doc.addEventListener("click", () => host.setTimeout(() => campos().forEach(sincronizar), 0), true);
+
           host.setInterval(() => {
-            doc.querySelectorAll("input:-webkit-autofill").forEach(sincronizar);
-          }, 500);
+            campos().forEach(sincronizar);
+          }, 250);
         })();
         </script>
         """,
