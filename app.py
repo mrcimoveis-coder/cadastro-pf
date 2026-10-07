@@ -174,38 +174,30 @@ def ativar_sincronizacao_autopreenchimento():
             }, 0);
           }, true);
           doc.addEventListener("focusout", (event) => sincronizar(event.target, ehAutopreenchido(event.target)), true);
-          const confirmarAutomaticosComoDigitacao = () => {
+          const confirmarValoresVisiveisComoDigitacao = () => {
+            // Nem todo navegador mantém :-webkit-autofill depois que o usuário
+            // escolhe uma sugestão. Antes do envio, republicamos TODOS os valores
+            // visíveis para o React/Streamlit, inclusive no Chrome/Android e Safari/iOS.
             campos().forEach((input) => {
-              if (ehAutopreenchido(input) && input.value) valoresAutomaticos.set(chave(input), input.value);
-            });
-            valoresAutomaticos.forEach((valor, id) => {
-              const input = [...campos()].find((item) => chave(item) === id);
-              if (!input || !valor) return;
-              input.focus({ preventScroll: true });
-              input.setSelectionRange?.(0, input.value.length);
-              if (!doc.execCommand?.("insertText", false, valor)) {
-                const setter = Object.getOwnPropertyDescriptor(host.HTMLInputElement.prototype, "value")?.set;
-                if (setter) setter.call(input, valor);
-                input.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true, data: valor }));
-              }
-              input.dispatchEvent(new Event("change", { bubbles: true, composed: true }));
+              if (!input.value) return;
+              sincronizar(input, true, true);
             });
           };
           doc.addEventListener("click", (event) => {
             const botao = event.target.closest?.("button");
-            if (!botao || !botao.innerText.includes("Enviar Ficha")) return;
+            if (!botao || !/Enviar[ ]+(Cadastro|Ficha)/i.test(botao.innerText)) return;
             if (host.__mrcLiberarEnvio) { host.__mrcLiberarEnvio = false; return; }
             event.preventDefault();
             event.stopImmediatePropagation();
-            confirmarAutomaticosComoDigitacao();
-            host.setTimeout(confirmarAutomaticosComoDigitacao, 350);
+            confirmarValoresVisiveisComoDigitacao();
+            host.setTimeout(confirmarValoresVisiveisComoDigitacao, 350);
             host.setTimeout(() => {
-              const enviar = [...doc.querySelectorAll("button")].find((item) => item.innerText.includes("Enviar Ficha"));
+              const enviar = [...doc.querySelectorAll("button")].find((item) => /Enviar[ ]+(Cadastro|Ficha)/i.test(item.innerText));
               if (enviar) { host.__mrcLiberarEnvio = true; enviar.click(); }
             }, 900);
           }, true);
           doc.addEventListener("keydown", (event) => {
-            if (event.key === "Enter") confirmarAutomaticosComoDigitacao();
+            if (event.key === "Enter") confirmarValoresVisiveisComoDigitacao();
           }, true);
 
           host.setInterval(() => {
